@@ -1,0 +1,27 @@
+{
+  "eventType": "com.oraclecloud.objectstorage.createobject",
+  "cloudEventsVersion": "0.1",
+  "eventTypeVersion": "2.0",
+  "source": "ObjectStorage",
+  "eventTime": "2022-02-07T15:50:44Z",
+  "contentType": "application/json",
+  "data": {
+    "compartmentId": "ocid1.compartment.oc1..aaaaaaaas5gyvexe625j3co44too6zydr5qnfdurtujrme2xyswgmkeuwpbq",
+    "compartmentName": "prakhar",
+    "resourceName": "99.00.88SVV.pdf",
+    "resourceId": "/n/axh1wuvhagpg/b/func-app-bucket/o/99.00.88SVV.pdf",
+    "availabilityDomain": "AMS-AD-1",
+    "additionalDetails": {
+      "bucketName": "func-app-bucket",
+      "versionId": "9565276b-e2a2-4388-a571-504f7493b9a1",
+      "archivalState": "Available",
+      "namespace": "axh1wuvhagpg",
+      "bucketId": "ocid1.bucket.oc1.eu-amsterdam-1.aaaaaaaal3pvjf26wq5qdvpnr657n6zh7gvfek3b2iuegyp7ifyb7syl4wca",
+      "eTag": "1118a1e2-9d05-48ab-bd04-13d3b265526c"
+    }
+  },
+  "eventID": "b470ea69-3f30-9faa-8376-bc37e2f2ef14",
+  "extensions": {
+    "compartmentId": "ocid1.compartment.oc1..aaaaaaaas5gyvexe625j3co44too6zydr5qnfdurtujrme2xyswgmkeuwpbq"
+  }
+}
