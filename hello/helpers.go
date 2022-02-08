@@ -2,7 +2,9 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/openzipkin/zipkin-go"
 	"io"
@@ -13,8 +15,8 @@ import (
 	"strings"
 )
 
-func unzipFiles(ctx context.Context, src string, tt *zipkin.Tracer) (string, []string, error) {
-	span, _ := tt.StartSpanFromContext(ctx, "unzipFiles files")
+func unzipUploadedFile(ctx context.Context, src string, tt *zipkin.Tracer) (string, []string, error) {
+	span, _ := tt.StartSpanFromContext(ctx, "unzipUploadedFile")
 	defer span.Finish()
 
 	dest, err := ioutil.TempDir("", "mvr-*")
@@ -79,4 +81,50 @@ func unzipFiles(ctx context.Context, src string, tt *zipkin.Tracer) (string, []s
 		}
 	}
 	return dest, filenames, nil
+}
+
+func saveObjectAsZip(ctx context.Context, cBuf *bytes.Buffer, tracer *zipkin.Tracer) (string, error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "saveObjectAsZip")
+	defer span.Finish()
+
+	zipFile, err := ioutil.TempFile("", "mvr-*.zip")
+	if err != nil {
+		span.Tag(string(zipkin.TagError), err.Error())
+		log.Print("can not create temp dir", err)
+		return "", err
+	}
+	defer zipFile.Close()
+
+	_, err = io.Copy(zipFile, cBuf)
+	if err != nil {
+		span.Tag(string(zipkin.TagError), err.Error())
+		return "", err
+	}
+
+	return zipFile.Name(), nil
+}
+
+func validateCloudEvent(ctx context.Context, in io.Reader, tt *zipkin.Tracer) (*BucketEvent, error) {
+	span, _ := tt.StartSpanFromContext(ctx, "validateCloudEvent")
+	defer span.Finish()
+
+	var bb []byte
+	bbuf := bytes.NewBuffer(bb)
+
+	if _, err := io.Copy(bbuf, in); err != nil {
+		span.Tag(string(zipkin.TagError), err.Error())
+		return nil, err
+	}
+
+	event := BucketEvent{}
+	if err := json.Unmarshal(bbuf.Bytes(), &event); err != nil {
+		span.Tag(string(zipkin.TagError), err.Error())
+		return nil, err
+	}
+
+	if err := event.validate(); err != nil {
+		span.Tag(string(zipkin.TagError), err.Error())
+		return nil, err
+	}
+	return &event, nil
 }

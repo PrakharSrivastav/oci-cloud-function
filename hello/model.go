@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+type Message struct {
+	Msg string `json:"message"`
+}
+
 type BucketEvent struct {
 	EventType          string    `json:"eventType"`
 	CloudEventsVersion string    `json:"cloudEventsVersion"`
