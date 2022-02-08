@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	fdk "github.com/fnproject/fdk-go"
@@ -8,12 +9,11 @@ import (
 	"github.com/openzipkin/zipkin-go/model"
 	rr "github.com/openzipkin/zipkin-go/reporter"
 	zipkinHttpReporter "github.com/openzipkin/zipkin-go/reporter/http"
-	"github.com/oracle/oci-go-sdk/v56/common/auth"
-	"github.com/oracle/oci-go-sdk/v56/objectstorage"
 	"io"
-	"io/ioutil"
 	"log"
+	"os"
 	"strconv"
+	"strings"
 )
 
 const endpointUrl = ""
@@ -49,75 +49,64 @@ func myHandler(ctx context.Context, in io.Reader, out io.Writer) {
 		log.Print("get object error :", err)
 		return
 	}
+	defer object.Content.Close()
 
 	log.Printf("object details are : %+v", object)
+	if *object.ContentLength == 0 {
+		log.Print("not content")
+		return
+	}
+
+	var cc []byte
+	cBuf := bytes.NewBuffer(cc)
+	if _, err = io.Copy(cBuf, object.Content); err != nil {
+		log.Print("read file object error", err)
+		return
+	}
+
+	fileName, err := copyContentAsZip(ctx, cBuf, tt)
+	if err != nil {
+		log.Print("can not copy as zip", err)
+		return
+	}
+	defer os.RemoveAll(fileName)
+	log.Print("content written to zipfile ", fileName)
+
+	dest, str, err := unzipFiles(ctx, fileName, tt)
+	if err != nil {
+		log.Print("can not write to zip-file ", fileName, err)
+		return
+	}
+	defer os.RemoveAll(dest)
+	log.Print("unzipped : \n", strings.Join(str, "\n"))
 
 	msg := Message{Msg: "Hello World"}
 	json.NewEncoder(out).Encode(&msg)
-}
-
-func getObject(ctx context.Context,
-	client *objectstorage.ObjectStorageClient,
-	event *BucketEvent,
-	tt *zipkin.Tracer) (*objectstorage.GetObjectResponse, error) {
-
-	span, ctx := tt.StartSpanFromContext(ctx, "GetBucketObject")
-	defer span.Finish()
-
-	request := objectstorage.GetObjectRequest{
-		NamespaceName: &event.Data.AdditionalDetails.Namespace,
-		BucketName:    &event.Data.AdditionalDetails.BucketName,
-		ObjectName:    &event.Data.ResourceName,
-	}
-
-	object, err := client.GetObject(ctx, request)
-	if err != nil {
-		span.Tag(string(zipkin.TagError), err.Error())
-		return nil, err
-	}
-	return &object, nil
 }
 
 func validateEvent(ctx context.Context, in io.Reader, tt *zipkin.Tracer) (*BucketEvent, error) {
 	span, _ := tt.StartSpanFromContext(ctx, "validateEvent")
 	defer span.Finish()
 
-	bb, err := ioutil.ReadAll(in)
-	if err != nil {
+	var bb []byte
+	bbuf := bytes.NewBuffer(bb)
+
+	if _, err := io.Copy(bbuf, in); err != nil {
 		span.Tag(string(zipkin.TagError), err.Error())
 		return nil, err
 	}
 
 	event := BucketEvent{}
-	err = json.Unmarshal(bb, &event)
-	if err != nil {
+	if err := json.Unmarshal(bbuf.Bytes(), &event); err != nil {
 		span.Tag(string(zipkin.TagError), err.Error())
 		return nil, err
 	}
 
-	if err = event.validate(); err != nil {
+	if err := event.validate(); err != nil {
 		span.Tag(string(zipkin.TagError), err.Error())
 		return nil, err
 	}
 	return &event, nil
-}
-
-func bucketClient(ctx context.Context, tt *zipkin.Tracer) (*objectstorage.ObjectStorageClient, error) {
-	span, _ := tt.StartSpanFromContext(ctx, "get bucket client")
-	defer span.Finish()
-
-	provider, err := auth.ResourcePrincipalConfigurationProvider()
-	if err != nil {
-		span.Tag(string(zipkin.TagError), err.Error())
-		return nil, err
-	}
-
-	client, err := objectstorage.NewObjectStorageClientWithConfigurationProvider(provider)
-	if err != nil {
-		span.Tag(string(zipkin.TagError), err.Error())
-		return nil, err
-	}
-	return &client, nil
 }
 
 func getSpanWithTracerAndReporter(ctx context.Context) (rr.Reporter, *zipkin.Tracer, zipkin.Span, error) {
@@ -128,11 +117,15 @@ func getSpanWithTracerAndReporter(ctx context.Context) (rr.Reporter, *zipkin.Tra
 	if err != nil {
 		return nil, nil, nil, err
 	}
-
-	tracer, err := zipkin.NewTracer(reporter, zipkin.WithLocalEndpoint(endpoint))
+	sampler, err := zipkin.NewCountingSampler(1.0)
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	tracer, err := zipkin.NewTracer(reporter, zipkin.WithLocalEndpoint(endpoint), zipkin.WithSampler(sampler))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	sopt := zipkin.Parent(setContext(newCtx))
 	span, ctx := tracer.StartSpanFromContext(ctx, "hello-fn", sopt)
 	return reporter, tracer, span, nil
@@ -146,13 +139,11 @@ func setContext(ctx fdk.Context) model.SpanContext {
 	traceId, err := model.TraceIDFromHex(ctx.TracingContextData().TraceId())
 
 	if err != nil {
-		log.Println("TRACE ID NOT DEFINED.....")
 		return model.SpanContext{}
 	}
 
 	id, err := strconv.ParseUint(ctx.TracingContextData().SpanId(), 16, 64)
 	if err != nil {
-		log.Println("SPAN ID NOT DEFINED.....")
 		return model.SpanContext{}
 	}
 
