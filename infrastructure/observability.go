@@ -1,4 +1,4 @@
-package main
+package infrastructure
 
 import (
 	"context"
@@ -10,7 +10,9 @@ import (
 	"strconv"
 )
 
-func getSpanWithTracerAndReporter(ctx context.Context) (rr.Reporter, *zipkin.Tracer, zipkin.Span, error) {
+const endpointUrl = "https://aaaac7wupury6aaaaaaaaaavku.apm-agt.eu-amsterdam-1.oci.oraclecloud.com/20200101/observations/public-span/?dataFormat=zipkin&dataFormatVersion=2&dataKey=QAG4HXI6MVIW45ABJUUDTRJ4PYPRGHYU"
+
+func GetSpanWithTracerAndReporter(ctx context.Context, funcationName string) (rr.Reporter, *zipkin.Tracer, zipkin.Span, error) {
 	newCtx := fdk.GetContext(ctx)
 	reporter := zipkinHttpReporter.NewReporter(endpointUrl)
 
@@ -28,7 +30,7 @@ func getSpanWithTracerAndReporter(ctx context.Context) (rr.Reporter, *zipkin.Tra
 	}
 
 	sopt := zipkin.Parent(setContext(newCtx))
-	span, ctx := tracer.StartSpanFromContext(ctx, "hello-fn", sopt)
+	span, ctx := tracer.StartSpanFromContext(ctx, funcationName, sopt)
 	return reporter, tracer, span, nil
 }
 
@@ -48,11 +50,11 @@ func setContext(ctx fdk.Context) model.SpanContext {
 		TraceID:  traceId,
 		ID:       model.ID(id),
 		ParentID: nil,
-		Sampled:  BoolAddr(ctx.TracingContextData().IsSampled()),
+		Sampled:  boolAddr(ctx.TracingContextData().IsSampled()),
 	}
 }
 
-func BoolAddr(b bool) *bool {
+func boolAddr(b bool) *bool {
 	boolVar := b
 	return &boolVar
 }

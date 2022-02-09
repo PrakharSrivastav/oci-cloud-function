@@ -1,11 +1,13 @@
-package main
+package helper
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/PrakharSrivastav/oci-cloud-function/model"
 	"github.com/openzipkin/zipkin-go"
 	"io"
 	"io/ioutil"
@@ -13,9 +15,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 )
 
-func unzipUploadedFile(ctx context.Context, src string, tt *zipkin.Tracer) (string, []string, error) {
+func UnzipUploadedFile(ctx context.Context, src string, tt *zipkin.Tracer) (string, []string, error) {
 	span, _ := tt.StartSpanFromContext(ctx, "unzipUploadedFile")
 	defer span.Finish()
 
@@ -83,7 +87,7 @@ func unzipUploadedFile(ctx context.Context, src string, tt *zipkin.Tracer) (stri
 	return dest, filenames, nil
 }
 
-func saveObjectAsZip(ctx context.Context, cBuf *bytes.Buffer, tracer *zipkin.Tracer) (string, error) {
+func SaveObjectAsZip(ctx context.Context, cBuf *bytes.Buffer, tracer *zipkin.Tracer) (string, error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "saveObjectAsZip")
 	defer span.Finish()
 
@@ -104,8 +108,8 @@ func saveObjectAsZip(ctx context.Context, cBuf *bytes.Buffer, tracer *zipkin.Tra
 	return zipFile.Name(), nil
 }
 
-func validateCloudEvent(ctx context.Context, in io.Reader, tt *zipkin.Tracer) (*BucketEvent, error) {
-	span, _ := tt.StartSpanFromContext(ctx, "validateCloudEvent")
+func ValidateCloudEvent(ctx context.Context, in io.Reader, tracer *zipkin.Tracer) (*model.BucketEvent, error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "validateCloudEvent")
 	defer span.Finish()
 
 	var bb []byte
@@ -116,15 +120,87 @@ func validateCloudEvent(ctx context.Context, in io.Reader, tt *zipkin.Tracer) (*
 		return nil, err
 	}
 
-	event := BucketEvent{}
+	event := model.BucketEvent{}
 	if err := json.Unmarshal(bbuf.Bytes(), &event); err != nil {
 		span.Tag(string(zipkin.TagError), err.Error())
 		return nil, err
 	}
 
-	if err := event.validate(); err != nil {
+	if err := event.Validate(); err != nil {
 		span.Tag(string(zipkin.TagError), err.Error())
+		span.Annotate(time.Now(), "validation error 1")
+		span.Annotate(time.Now(), "validation error 2")
+		span.Annotate(time.Now(), "validation error 3")
+		span.Annotate(time.Now(), "validation error 4")
+
 		return nil, err
 	}
 	return &event, nil
+}
+
+func parseDataFile(ctx context.Context, path string) (int, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	wg := new(sync.WaitGroup)
+
+	fileBuffer := bufio.NewReader(file)
+	count := 0
+	batch := make([]string, 0, 100000)
+	line := ""
+
+	totalcount := 0
+
+	for {
+		line, err = fileBuffer.ReadString('\n')
+		if err != nil {
+			break
+		}
+		batch = append(batch, line)
+		if len(batch) != 100000 {
+			continue
+		}
+		count++
+		wg.Add(1)
+		go handle(batch, count, wg)
+		totalcount = totalcount + len(batch)
+		//handle2(batch, count)
+		batch = make([]string, 0, 100000)
+	}
+	if len(batch) > 0 {
+		wg.Add(1)
+		go handle(batch, count, wg)
+		totalcount = totalcount + len(batch)
+		//handle2(batch, count)
+	}
+
+	wg.Wait()
+
+	if err != nil {
+		if err == io.EOF {
+			log.Printf("totalcount : %d", totalcount)
+			log.Printf("globalcount : %d", globalcount)
+			return totalcount, nil
+		}
+		return 0, err
+	}
+	return totalcount, nil
+}
+
+func handle(list []string, num int, wg *sync.WaitGroup) {
+	log.Print("batch number ", num)
+	globalcount = globalcount + len(list)
+	time.Sleep(10 * time.Second)
+	wg.Done()
+}
+
+var globalcount = 0
+
+func handle2(list []string, num int) {
+	log.Print("batch2 number ", num)
+	globalcount = globalcount + len(list)
+	time.Sleep(5 * time.Second)
 }

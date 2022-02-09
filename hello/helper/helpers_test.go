@@ -1,4 +1,4 @@
-package main
+package helper
 
 import (
 	"bytes"
@@ -15,7 +15,7 @@ import (
 func Test_copyContentAsZip(t *testing.T) {
 	var cc []byte
 	cBuf := bytes.NewBuffer(cc)
-	file, err := os.ReadFile("testdata/1.zip")
+	file, err := os.ReadFile("../testdata/1.zip")
 	require.NoError(t, err)
 	require.NotNil(t, file)
 
@@ -26,7 +26,7 @@ func Test_copyContentAsZip(t *testing.T) {
 	tr, err := zipkin.NewTracer(reporter.NewNoopReporter(), zipkin.WithNoopTracer(true))
 	require.NoError(t, err)
 
-	fileName, err := saveObjectAsZip(context.Background(), cBuf, tr)
+	fileName, err := SaveObjectAsZip(context.Background(), cBuf, tr)
 	require.NoError(t, err)
 	require.NotNil(t, fileName)
 	defer os.RemoveAll(fileName)
@@ -37,8 +37,8 @@ func Test_unzip(t *testing.T) {
 	tr, err := zipkin.NewTracer(reporter.NewNoopReporter(), zipkin.WithNoopTracer(true))
 	require.NoError(t, err)
 
-	dest, strings, err := unzipUploadedFile(context.Background(),
-		"testdata/1.zip", tr)
+	dest, strings, err := UnzipUploadedFile(context.Background(),
+		"../testdata/1.zip", tr)
 	require.NoError(t, err)
 	require.NotNil(t, strings)
 	require.NotEmpty(t, dest)
@@ -49,23 +49,31 @@ func Test_unzip(t *testing.T) {
 
 func TestZipAndUnzip(t *testing.T) {
 
-	readFile, err := ioutil.ReadFile("testdata/1.zip")
+	readFile, err := ioutil.ReadFile("../testdata/1.zip")
 	require.NoError(t, err)
 	require.NotNil(t, readFile)
 
 	tr, err := zipkin.NewTracer(reporter.NewNoopReporter(), zipkin.WithNoopTracer(true))
 	require.NoError(t, err)
 
-	fileName, err := saveObjectAsZip(context.Background(), bytes.NewBuffer(readFile), tr)
+	fileName, err := SaveObjectAsZip(context.Background(), bytes.NewBuffer(readFile), tr)
 	require.NoError(t, err)
 	require.NotNil(t, fileName)
 	defer os.RemoveAll(fileName)
 	t.Log(fileName)
 
-	dst, strings, err := unzipUploadedFile(context.Background(), fileName, tr)
+	dst, strings, err := UnzipUploadedFile(context.Background(), fileName, tr)
 	require.NoError(t, err)
 	require.NotNil(t, strings)
 	require.NotEmpty(t, dst)
 	defer os.RemoveAll(dst)
 	t.Log(strings, err)
+}
+
+func Test_parseDataFile(t *testing.T) {
+	t.SkipNow()
+	count, err := parseDataFile(context.Background(), "/Users/prakhar/workspace/toyota/docs/MVR_TECH_DATA.txt.20210603")
+	require.NoError(t, err)
+	t.Log(count)
+	// 10843080
 }

@@ -1,13 +1,10 @@
-package main
+package model
 
 import (
 	"errors"
+	"strings"
 	"time"
 )
-
-type Message struct {
-	Msg string `json:"message"`
-}
 
 type BucketEvent struct {
 	EventType          string    `json:"eventType"`
@@ -23,37 +20,42 @@ type BucketEvent struct {
 	} `json:"extensions"`
 }
 
-func (b *BucketEvent) validate() error {
+func (b *BucketEvent) Validate() error {
 	if *b == (BucketEvent{}) {
 		return errors.New("empty-body")
 	}
 
 	if b.EventType != "com.oraclecloud.objectstorage.createobject" {
-		return errors.New("invalid event type")
+		return ErrInvalidCloudEventType
 	}
 
 	if b.Source != "ObjectStorage" {
-		return errors.New("invalid source type")
+		return ErrInvalidCloudEventSource
 	}
 
 	if b.Data == (Data{}) {
-		return errors.New("empty data field")
+		return ErrEmptyCloudEventData
 	}
 
 	if b.Data.ResourceName == "" || b.Data.ResourceID == "" {
-		return errors.New("invalid bucket resource")
+		return ErrInvalidBucketObject
+	}
+
+	split := strings.Split(b.Data.ResourceName, ".")
+	if len(split) == 0 || split[len(split)-1] != "zip" {
+		return ErrNotAZipFile
 	}
 
 	if b.Data.AdditionalDetails == (AdditionalDetails{}) {
-		return errors.New("empty bucket details")
+		return ErrEmptyBucketInformation
 	}
 
 	if b.Data.AdditionalDetails.BucketName == "" || b.Data.AdditionalDetails.BucketID == "" {
-		return errors.New("invalid bucket details")
+		return ErrInvalidBucketInformation
 	}
 
 	if b.Data.AdditionalDetails.Namespace == "" {
-		return errors.New("invalid bucket namespace")
+		return ErrInvalidNamespace
 	}
 	return nil
 }
