@@ -16,7 +16,7 @@ func GetConnection() (*Client, error) {
 	port := 1522
 	service := "g68bb372c582cce_prakharadb_low.adb.oraclecloud.com"
 	user := "admin"
-	pass := "RandomPassword2020*#"
+	pass := ""
 	wallet := "./wallet"
 	url := go_ora.BuildUrl(host, port, service, user, pass, map[string]string{
 		"wallet":     wallet,

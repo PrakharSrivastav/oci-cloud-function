@@ -10,7 +10,7 @@ import (
 	"strconv"
 )
 
-const endpointUrl = ""
+const endpointUrl = "https://aaaac7wupury6aaaaaaaaaavku.apm-agt.eu-amsterdam-1.oci.oraclecloud.com/20200101/observations/public-span/?dataFormat=zipkin&dataFormatVersion=2&dataKey=QAG4HXI6MVIW45ABJUUDTRJ4PYPRGHYU"
 
 func GetSpanWithTracerAndReporter(ctx context.Context, functionName string) (rr.Reporter, *zipkin.Tracer, zipkin.Span, error) {
 	newCtx := fdk.GetContext(ctx)
