@@ -1,0 +1,10 @@
+testdata/**
+.editorconfig
+.git
+README.md
+arm/
+powerpc/
+mips/
+.cache
+.idea
+testdata

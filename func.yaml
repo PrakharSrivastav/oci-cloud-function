@@ -1,4 +1,6 @@
 schema_version: 20180708
 name: hello
-version: 0.0.68
+version: 0.0.129
 runtime: docker .
+memory: 256
+timeout: 120
